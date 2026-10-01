@@ -201,7 +201,7 @@ function FloatingTabBar({ page, go, bottomInset }: { page: Page; go: (p: Page) =
 
 function useTopSafePad() {
   const insets = useSafeAreaInsets();
-  if (Platform.OS === 'web') return 67;
+  if (Platform.OS === 'web') return Math.max(insets.top, 12);
   const statusBar = insets.top > 0 ? insets.top : (RNStatusBar.currentHeight ?? 54);
   return statusBar + 12;
 }
@@ -771,15 +771,19 @@ function Login() {
     setBusy(false);
   };
 
+  const { width } = useWindowDimensions();
+  const sidePad = width < 380 ? 16 : 24;
+
   return (
-    <ScrollView contentContainerStyle={[styles.auth, { paddingTop: topPad }]}>
-      <Animated.View entering={FadeIn.duration(600)}>
+    <ScrollView contentContainerStyle={[styles.auth, { paddingTop: topPad, paddingHorizontal: sidePad }]}>
+      <View style={gateStyles.authColumn}>
+      <Animated.View entering={FadeIn.duration(600)} style={gateStyles.authColumn}>
         <Logo />
         <InstallBanner />
         <Text style={styles.authTitle}>{isSignUp ? 'Begin your path' : 'Welcome back'}</Text>
         <Text style={styles.authCopy}>{isSignUp ? 'Create a gentle practice for understanding and connection.' : 'A little more security, one step at a time.'}</Text>
       </Animated.View>
-      <View style={styles.authForm}>
+      <View style={[styles.authForm, gateStyles.authColumn]}>
       {isSignUp && (
         <View style={styles.row}>
           <View style={styles.rowField}><TextInput placeholder="First name" value={first} onChangeText={setFirst} style={styles.input} /></View>
@@ -822,6 +826,7 @@ function Login() {
         <Text style={styles.link}>{isSignUp ? ' Log in' : ' Start your free trial'}</Text>
       </Pressable>
       <Text style={styles.disclaimer}>Educational and self-reflection resources, not a substitute for professional mental health care.</Text>
+      </View>
     </ScrollView>
   );
 }
@@ -2627,10 +2632,11 @@ const gateStyles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.border },
   dotActive: { width: 22, backgroundColor: C.primary },
   action: { width: '100%', maxWidth: 360 },
-  install: { width: 360, maxWidth: '100%', alignSelf: 'center', backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 14, marginTop: 18 },
+  authColumn: { width: '100%', maxWidth: 420, alignSelf: 'stretch' },
+  install: { width: '100%', alignSelf: 'stretch', backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 14, marginTop: 18 },
   installHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   installEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1.4, color: C.blue, marginBottom: 4 },
-  installTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 18, lineHeight: 24, color: C.primary },
+  installTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 18, lineHeight: 24, color: C.primary, flexShrink: 1 },
   installToggle: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, marginTop: 10 },
   installStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
   installNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' },

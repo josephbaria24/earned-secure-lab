@@ -1,0 +1,5 @@
+[functions.upload-audio]
+verify_jwt = false
+
+[functions.ping]
+verify_jwt = false

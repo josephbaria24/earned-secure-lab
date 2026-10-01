@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "Earned Secure Lab",
+    "slug": "earned-secure-lab",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/es_icon.png",
+    "scheme": "earned-secure-lab",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/es_icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F7F3EC"
+    },
+    "ios": {
+      "supportsTablet": false
+    },
+    "android": {
+      "usesCleartextTraffic": true
+    },
+    "androidStatusBar": {
+      "backgroundColor": "#F7F3EC",
+      "barStyle": "dark-content",
+      "translucent": true
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#FFFCF7",
+      "barStyle": "dark-content"
+    },
+    "web": {
+      "favicon": "./assets/images/es_icon.png",
+      "name": "Earned Secure Lab",
+      "shortName": "Earned Secure",
+      "lang": "en",
+      "description": "A little more security, one step at a time.",
+      "themeColor": "#214C3A",
+      "backgroundColor": "#F7F3EC",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "scope": "/",
+      "output": "single"
+    },
+    "updates": {
+      "enabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

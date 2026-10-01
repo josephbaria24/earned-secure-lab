@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Dimensions, Image, Modal, Platform, Pressable, ScrollView, StatusBar as RNStatusBar, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as DocumentPicker from 'expo-document-picker';
 import { Icon } from '@/components/Icon';
 import { SmokeBackground } from '@/components/SmokeBackground';
@@ -585,6 +586,168 @@ function Screen({
     </View>
   );
 }
+const journalArt = require('../assets/images/onboarding-journal.png');
+const shieldArt = require('../assets/images/onboarding-shield.png');
+const ONBOARDING = [
+  {
+    art: journalArt,
+    kicker: 'FIND YOUR WAY',
+    title: 'A compass for what you feel',
+    body: 'Journal the moment, notice the pattern, and grow from a place that feels steady.',
+  },
+  {
+    art: shieldArt,
+    kicker: 'EARNED SECURITY',
+    title: 'Care you can practice',
+    body: 'Hold trust, boundaries, and a softer kind of safety until they feel like your own.',
+  },
+];
+
+function Onboarding({ onDone }: { onDone: () => void }) {
+  const { width, height } = useWindowDimensions();
+  const artHeight = height < 720 ? 200 : 268;
+  const insets = useSafeAreaInsets();
+  const index = useSharedValue(0);
+  const [step, setStep] = useState(0);
+  const stepRef = useRef(0);
+
+  const goTo = (next: number) => {
+    if (next >= ONBOARDING.length) {
+      onDone();
+      return;
+    }
+    const clamped = Math.max(0, next);
+    stepRef.current = clamped;
+    setStep(clamped);
+    index.value = withSpring(clamped, { damping: 20, stiffness: 170, mass: 0.75 });
+  };
+
+  const pan = Gesture.Pan()
+    .activeOffsetX([-16, 16])
+    .onEnd((event) => {
+      if (event.translationX < -48) runOnJS(goTo)(stepRef.current + 1);
+      else if (event.translationX > 48) runOnJS(goTo)(stepRef.current - 1);
+    });
+
+  const trackStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: -index.value * width }],
+  }));
+
+  return (
+    <View style={[gateStyles.screen, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 20) }]}>
+      <View style={gateStyles.topBar}>
+        <Text style={gateStyles.brand}>Earned Secure Lab</Text>
+        <Pressable onPress={onDone} hitSlop={8} accessibilityRole="button">
+          <Text style={gateStyles.skip}>Log in</Text>
+        </Pressable>
+      </View>
+      <GestureDetector gesture={pan}>
+        <View style={gateStyles.viewport}>
+          <Animated.View style={[gateStyles.track, { width: width * ONBOARDING.length }, trackStyle]}>
+            {ONBOARDING.map((slide) => (
+              <View key={slide.kicker} style={[gateStyles.slide, { width }]}>
+                <View style={gateStyles.copy}>
+                  <View style={[gateStyles.artStage, { height: artHeight + 12 }]}>
+                    <View style={[gateStyles.artHalo, artHeight < 240 && { width: 168, height: 168, borderRadius: 84 }]} />
+                    <Image source={slide.art} style={[gateStyles.art, { height: artHeight }]} resizeMode="contain" accessibilityIgnoresInvertColors />
+                  </View>
+                  <Text style={gateStyles.kicker}>{slide.kicker}</Text>
+                  <Text style={gateStyles.title}>{slide.title}</Text>
+                  <Text style={gateStyles.body}>{slide.body}</Text>
+                </View>
+              </View>
+            ))}
+          </Animated.View>
+        </View>
+      </GestureDetector>
+      <View style={gateStyles.footer}>
+        <View style={gateStyles.dots}>
+          {ONBOARDING.map((slide, dot) => (
+            <Pressable key={slide.kicker} onPress={() => goTo(dot)} accessibilityRole="button" accessibilityLabel={`Slide ${dot + 1}`}>
+              <View style={[gateStyles.dot, dot === step && gateStyles.dotActive]} />
+            </Pressable>
+          ))}
+        </View>
+        <View style={gateStyles.action}>
+          <Button label={step === ONBOARDING.length - 1 ? 'Continue to log in' : 'Next'} onPress={() => goTo(step + 1)} />
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function webInstallGuide(): { eyebrow: string; title: string; steps: string[] } | null {
+  if (Platform.OS !== 'web' || typeof navigator === 'undefined') return null;
+  const ua = navigator.userAgent || '';
+  const touchMac = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  const iOS = /iPad|iPhone|iPod/.test(ua) || touchMac;
+  const android = /Android/i.test(ua);
+  const safari = iOS && /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|Chrome|OPR/i.test(ua);
+  if (iOS) {
+    return {
+      eyebrow: 'SAFARI',
+      title: 'Add a Home Screen shortcut',
+      steps: [
+        safari ? 'Tap the Share button at the bottom of Safari.' : 'Open this page in Safari, then tap the Share button.',
+        'Scroll the share sheet and tap Add to Home Screen.',
+        'Keep the name Earned Secure Lab, then tap Add.',
+        'Open the new icon from your Home Screen.',
+      ],
+    };
+  }
+  if (android) {
+    return {
+      eyebrow: 'ANDROID',
+      title: 'Install the Chrome app',
+      steps: [
+        'Open this page in Chrome.',
+        'Tap the three-dot menu in the top right.',
+        'Tap Install app, or Add to Home screen.',
+        'Confirm Install, then open it from your Home Screen.',
+      ],
+    };
+  }
+  return {
+    eyebrow: 'CHROME',
+    title: 'Install it like an app',
+    steps: [
+      'Look for the install icon in the address bar.',
+      'Or open the three-dot menu and choose Cast, save, and share.',
+      'Select Install page as app.',
+      'Confirm Install, then open Earned Secure Lab from your apps.',
+    ],
+  };
+}
+
+function InstallBanner() {
+  const guide = webInstallGuide();
+  const [open, setOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  if (!guide || hidden) return null;
+  return (
+    <View style={gateStyles.install}>
+      <View style={gateStyles.installHead}>
+        <View style={{ flex: 1 }}>
+          <Text style={gateStyles.installEyebrow}>{guide.eyebrow}</Text>
+          <Text style={gateStyles.installTitle}>{guide.title}</Text>
+        </View>
+        <Pressable onPress={() => setHidden(true)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Dismiss install guide">
+          <Icon name="cancel-01" size={18} color={C.mutedForeground} set="hugeicons" />
+        </Pressable>
+      </View>
+      <Pressable onPress={() => setOpen((value) => !value)} accessibilityRole="button">
+        <Text style={gateStyles.installToggle}>{open ? 'Hide steps' : 'Show step-by-step guide'}</Text>
+      </Pressable>
+      {open ? guide.steps.map((item, index) => (
+        <View key={item} style={gateStyles.installStep}>
+          <View style={gateStyles.installNum}><Text style={gateStyles.installNumText}>{index + 1}</Text></View>
+          <Text style={gateStyles.installStepText}>{item}</Text>
+        </View>
+      )) : null}
+    </View>
+  );
+}
+
 function Logo() { return <View style={styles.logoBlock}><Image source={brandIcon} style={styles.logo} resizeMode="contain" accessibilityLabel="Earned Secure Lab" /><Text style={styles.brand}>Earned Secure Lab</Text><Text style={styles.tagline}>Rewiring. Regulating. Restoring.</Text></View>; }
 function Login() {
   const { login, signup, resetPassword } = useAuth();
@@ -612,6 +775,7 @@ function Login() {
     <ScrollView contentContainerStyle={[styles.auth, { paddingTop: topPad }]}>
       <Animated.View entering={FadeIn.duration(600)}>
         <Logo />
+        <InstallBanner />
         <Text style={styles.authTitle}>{isSignUp ? 'Begin your path' : 'Welcome back'}</Text>
         <Text style={styles.authCopy}>{isSignUp ? 'Create a gentle practice for understanding and connection.' : 'A little more security, one step at a time.'}</Text>
       </Animated.View>
@@ -2419,20 +2583,7 @@ export default function App() {
           exiting={FadeOut.duration(240)}
           style={styles.pageFrame}
         >
-          {intro ? (
-            <View style={styles.splash}>
-              <Animated.View entering={ZoomIn.duration(700)} style={styles.splashLogoClip}>
-                <Image source={brandIcon} style={styles.splashLogo} resizeMode="contain" accessibilityLabel="Earned Secure Lab" />
-              </Animated.View>
-              <Animated.Text entering={FadeInDown.delay(180).duration(480)} style={styles.splashTitle}>Earned Secure Lab</Animated.Text>
-              <Animated.Text entering={FadeInDown.delay(320).duration(480)} style={styles.splashTag}>Rewiring. Regulating. Restoring.</Animated.Text>
-              <Animated.View entering={FadeInDown.delay(480).duration(480)}>
-                <Button label="Begin your journey" onPress={() => setIntro(false)} />
-              </Animated.View>
-            </View>
-          ) : (
-            <Login />
-          )}
+          {intro ? <Onboarding onDone={() => setIntro(false)} /> : <Login />}
         </Animated.View>
       </View>
     );
@@ -2455,3 +2606,34 @@ export default function App() {
 }
 const styles = StyleSheet.create({ pageShell: { flex: 1, backgroundColor: C.background }, pageFrame: { ...StyleSheet.absoluteFillObject }, screen: { flex: 1, backgroundColor: C.background }, screenScroll: { flex: 1 }, pad: { paddingHorizontal: 20, paddingBottom: 145, paddingTop: 8 }, headerBar: { zIndex: 25, backgroundColor: C.background, paddingHorizontal: 20 }, headerBarElevated: { shadowColor: '#183B50', shadowOpacity: 0.1, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6 }, header: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 12, position: 'relative' }, miniBrand: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1, minWidth: 0 }, miniLogo: { width: 40, height: 40 }, miniName: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 16, color: C.primary, flexShrink: 1 }, headerTitle: { position: 'absolute', left: 50, right: 50, fontFamily: 'Inter_700Bold', fontSize: 17, color: C.primary, textAlign: 'center' }, iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }, notifDot: { position: 'absolute', top: 9, right: 10, width: 7, height: 7, borderRadius: 4, backgroundColor: C.peach, borderWidth: 1.5, borderColor: C.card }, notifRoot: { flex: 1, justifyContent: 'flex-end' }, notifScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(24, 59, 80, 0.28)' }, notifSheet: { backgroundColor: C.card, borderTopLeftRadius: 28, borderTopRightRadius: 28, paddingHorizontal: 20, paddingTop: 10, paddingBottom: Platform.OS === 'web' ? 28 : 34, maxHeight: '78%', shadowColor: '#183B50', shadowOpacity: 0.18, shadowRadius: 24, shadowOffset: { width: 0, height: -8 }, elevation: 18 }, notifHandle: { alignSelf: 'center', width: 42, height: 4, borderRadius: 2, backgroundColor: C.border, marginBottom: 14 }, notifHead: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 8 }, notifTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 26, color: C.primary, marginBottom: 2 }, notifClose: { fontFamily: 'Inter_500Medium', fontSize: 26, lineHeight: 28, color: C.primary, marginTop: -2 }, notifRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border }, notifIcon: { width: 40, height: 40, borderRadius: 14, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' }, notifRowTitle: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primary, marginBottom: 3 }, notifTime: { fontFamily: 'Inter_500Medium', fontSize: 11, color: C.mutedForeground, marginTop: 2 }, notifDone: { alignItems: 'center', paddingTop: 16, paddingBottom: 4 }, greeting: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 32, color: C.primary, marginTop: 8 }, largeCopy: { fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 24, color: C.mutedForeground, marginTop: 5, marginBottom: 20 }, card: { backgroundColor: C.card, borderRadius: R, padding: 16, marginBottom: 14, borderWidth: 1, borderColor: C.border }, sectionTitle: { fontFamily: 'Inter_700Bold', fontSize: 18, color: C.primary, marginBottom: 12 }, sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, cardTitle: { fontFamily: 'Inter_700Bold', fontSize: 15, lineHeight: 21, color: C.primary, marginBottom: 4 }, muted: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, color: C.mutedForeground }, eyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1.4, color: C.blue }, eyebrowLight: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1.4, color: 'rgba(255,255,255,.8)' }, link: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary }, button: { height: 48, borderRadius: 16, backgroundColor: C.primary, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7, marginTop: 12, paddingHorizontal: 17 }, buttonText: { fontFamily: 'Inter_700Bold', fontSize: 14, color: C.primaryForeground }, secondary: { backgroundColor: C.secondary }, secondaryText: { color: C.primary }, pill: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, backgroundColor: C.secondary, marginBottom: 8 }, pillText: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary }, trial: { backgroundColor: '#E6EEE3', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, trialTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 22, color: C.primary, marginVertical: 5 }, pattern: { flexDirection: 'row', alignItems: 'center', gap: 12 }, circle: { width: 46, height: 46, borderRadius: 23, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' }, patternTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 20, color: C.primary, marginVertical: 4 }, art: { height: 130, borderRadius: 16, backgroundColor: '#E6DDD3', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }, artText: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 25, lineHeight: 26, textAlign: 'center', color: C.primary }, progress: { height: 6, backgroundColor: C.muted, borderRadius: 4, overflow: 'hidden', marginVertical: 11 }, fill: { height: 6, backgroundColor: C.primary, borderRadius: 4 }, questionPrompt: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 20, color: C.primary, marginBottom: 14 }, moods: { flexDirection: 'row', alignItems: 'stretch', gap: 0, position: 'relative', backgroundColor: C.muted, borderRadius: 18, padding: 4 }, moodPill: { position: 'absolute', left: 0, top: 0, borderRadius: 14, backgroundColor: C.primary }, mood: { flex: 1, minWidth: 0, minHeight: 68, borderRadius: 14, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, paddingVertical: 8, gap: 6, zIndex: 1 }, moodText: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 12, color: C.primary, textAlign: 'center' }, moodTextActive: { color: C.primaryForeground, fontFamily: 'Inter_700Bold' }, moodMarquee: { width: '100%', overflow: 'hidden', height: 12 }, moodMarqueeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'nowrap' }, moodMarqueeText: { textAlign: 'left', flexShrink: 0, ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap', width: 'max-content', maxWidth: 'none', overflow: 'visible', textOverflow: 'clip' } as object) : null) }, moodMarqueeMeasure: { position: 'absolute', left: -9999, top: 0, opacity: 0 }, moodMarqueeMeasureText: { flexShrink: 0, ...(Platform.OS === 'web' ? ({ whiteSpace: 'nowrap', width: 'max-content' } as object) : null) }, saved: { fontFamily: 'Inter_600SemiBold', fontSize: 12, color: C.primary, marginTop: 12 }, checkInNote: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: C.border }, recommend: { padding: 10 }, recommendArt: { height: 80, borderRadius: 14, backgroundColor: '#EBD8CC', alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, practice: { borderRadius: 22, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 }, practiceTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 20, lineHeight: 25, color: C.primaryForeground, marginVertical: 6 }, practiceCopy: { fontFamily: 'Inter_400Regular', fontSize: 12, lineHeight: 18, color: 'rgba(255,255,255,.8)' }, play: { width: 48, height: 48, borderRadius: 24, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center' }, resumeChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, backgroundColor: C.card }, resumeChipText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary }, restartChip: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 12, backgroundColor: 'rgba(255,252,247,0.16)' }, restartChipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.primaryForeground }, stats: { flexDirection: 'row', gap: 10 }, stat: { flex: 1, backgroundColor: C.card, borderRadius: 18, padding: 14 }, statValue: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 25, color: C.primary, marginBottom: 5 }, search: { height: 48, borderRadius: 16, backgroundColor: C.card, borderWidth: 1, borderColor: C.border, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, marginBottom: 14 }, article: { flexDirection: 'row', gap: 12, padding: 12, alignItems: 'flex-start' }, thumb: { width: 82, height: 100, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, thumbNo: { fontFamily: 'Inter_700Bold', fontSize: 10, color: C.primary, position: 'absolute', bottom: 8, left: 9 }, read: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.blue, marginTop: 7 }, hero: { height: 190, borderRadius: 24, backgroundColor: '#E4DDD3', alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 20, marginBottom: 18 }, heroText: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 27, lineHeight: 31, color: C.primary }, articleTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 32, lineHeight: 37, color: C.primary, marginVertical: 12 }, body: { fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 26, color: C.foreground, marginVertical: 9 }, reflection: { backgroundColor: '#E7EEE5', marginTop: 18 }, journal: { minHeight: 92, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.border, padding: 12, fontFamily: 'Inter_400Regular', fontSize: 14, marginTop: 12, textAlignVertical: 'top' }, audioFeatured: { backgroundColor: C.primary, borderRadius: 22, padding: 18, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 24 }, audioOrb: { width: 56, height: 56, borderRadius: 28, backgroundColor: C.peach, alignItems: 'center', justifyContent: 'center' }, audioRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 }, audioIcon: { width: 45, height: 45, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, audioPlay: { width: 38, height: 38, borderRadius: 19, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 20, width: '100%' }, tile: { minHeight: 168, borderRadius: 22, padding: 16, paddingBottom: 44, backgroundColor: '#E1E9E0', justifyContent: 'flex-start' }, tileIcon: { width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,.55)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }, tileTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 19, lineHeight: 23, color: C.primary, marginBottom: 6 }, tileArrow: { position: 'absolute', right: 15, bottom: 15 }, quote: { backgroundColor: '#E7EEE5', padding: 21 }, quoteText: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 21, lineHeight: 29, color: C.primary, marginVertical: 12 }, qrow: { backgroundColor: C.card, borderRadius: 15, padding: 16, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 }, qtext: { fontFamily: 'Inter_600SemiBold', fontSize: 14, lineHeight: 20, color: C.primary, flex: 1 }, assessTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 29, lineHeight: 36, color: C.primary, marginVertical: 22 }, assessStage: { overflow: 'hidden', position: 'relative', minHeight: 420 }, assessSlide: { width: '100%' }, answer: { backgroundColor: C.card, borderRadius: 18, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: C.border }, radio: { width: 32, height: 32, borderRadius: 16, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' }, radioText: { fontFamily: 'Inter_700Bold', color: C.primary }, answerText: { fontFamily: 'Inter_500Medium', fontSize: 14, lineHeight: 20, color: C.foreground, flex: 1 }, result: { width: 155, height: 155, borderRadius: 78, borderWidth: 14, borderColor: C.peach, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', marginVertical: 25, backgroundColor: C.card }, resultValue: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 40, color: C.primary }, scoreLabel: { fontFamily: 'Inter_600SemiBold', fontSize: 14, color: C.primary, marginTop: 9 }, score: { fontFamily: 'Inter_700Bold' }, insight: { backgroundColor: '#E1E9E0', minHeight: 230 }, insightTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 29, color: C.primary, marginVertical: 7 }, ring: { width: 110, height: 110, borderRadius: 55, borderWidth: 10, borderColor: C.blue, backgroundColor: C.card, alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end', marginTop: -10 }, chart: { height: 130, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', marginBottom: 12 }, barWrap: { height: 130, justifyContent: 'flex-end', alignItems: 'center', gap: 7 }, bar: { width: 18, borderRadius: 9, backgroundColor: C.primary }, subHero: { alignItems: 'center', paddingVertical: 12 }, subMark: { width: 74, height: 74, borderRadius: 37, backgroundColor: '#F1DED3', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }, subTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 32, lineHeight: 36, textAlign: 'center', color: C.primary }, bodySmall: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.foreground }, benefit: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 }, plans: { flexDirection: 'row', gap: 10 }, plan: { flex: 1, padding: 14, borderWidth: 2, borderColor: C.border }, price: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 27, color: C.primary, marginTop: 8 }, profile: { alignItems: 'center', paddingVertical: 24 }, bigAvatar: { width: 86, height: 86, borderRadius: 43, backgroundColor: C.sage, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }, bigAvatarText: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 38, color: C.primary }, profileName: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 26, color: C.primary, marginBottom: 4 }, chips: { flexDirection: 'row', gap: 7, marginVertical: 14 }, chip: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 15, backgroundColor: C.muted }, chipText: { fontFamily: 'Inter_600SemiBold', fontSize: 11, color: C.primary }, menu: { backgroundColor: C.card, borderRadius: 20, overflow: 'hidden', marginTop: 8 }, menuRow: { minHeight: 56, flexDirection: 'row', alignItems: 'center', gap: 13, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: C.border }, menuText: { fontFamily: 'Inter_500Medium', fontSize: 14, color: C.foreground, flex: 1 }, adminWelcome: { backgroundColor: C.primary }, adminTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 28, color: C.primaryForeground, marginVertical: 7 }, adminGrid: { gap: 8, marginBottom: 14 }, adminStatRow: { flexDirection: 'row', gap: 8 }, adminStat: { flex: 1, marginBottom: 0, paddingVertical: 8, paddingHorizontal: 12 }, adminStatValue: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 18, color: C.primary, lineHeight: 22 }, adminStatLabel: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.mutedForeground, marginTop: 1 }, adminTabs: { flexDirection: 'row', backgroundColor: C.muted, borderRadius: 16, padding: 4, marginBottom: 18 }, adminTab: { flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 12 }, adminTabText: { fontFamily: 'Inter_600SemiBold', fontSize: 10, color: C.mutedForeground }, adminRow: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.border }, adminDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.peach }, adminRowText: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.foreground, flex: 1 }, adminMetric: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary }, tabsShadow: { position: 'absolute', zIndex: 30, shadowColor: '#183B50', shadowOpacity: 0.18, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 14 }, tabsWrap: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 4, backgroundColor: C.primary, borderWidth: 0, overflow: 'hidden' }, tabPillSlide: { position: 'absolute', left: 0, backgroundColor: '#FFFFFF' }, tab: { flex: 1, alignItems: 'center', justifyContent: 'center', height: '100%', zIndex: 1, minWidth: 0 }, tabContent: { alignItems: 'center', justifyContent: 'center', gap: 3, paddingHorizontal: 2, maxWidth: '100%' }, tabLabel: { fontFamily: 'Inter_500Medium', fontSize: 10, lineHeight: 12, color: 'rgba(255,255,255,0.82)', textAlign: 'center' }, tabLabelActive: { fontFamily: 'Inter_700Bold', color: C.primary },
  splash: { flex: 1, backgroundColor: C.background, alignItems: 'center', justifyContent: 'center', padding: 28 }, splashLogoClip: { width: 220, height: 220, borderRadius: 110, overflow: 'hidden', marginBottom: 16 }, splashLogo: { width: 220, height: 220, borderRadius: 110 }, splashTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 34, color: C.primary }, splashTag: { fontFamily: 'Inter_500Medium', fontSize: 13, color: C.blue, letterSpacing: 1.1, marginTop: 10, marginBottom: 42 }, logoBlock: { alignItems: 'center' }, logo: { width: 140, height: 140, marginBottom: 12 }, brand: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 30, color: C.primary, marginTop: 18 }, tagline: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.blue, letterSpacing: 1, marginTop: 8 }, auth: { flexGrow: 1, backgroundColor: C.background, paddingHorizontal: 24, paddingBottom: 30, alignItems: 'center' }, authForm: { width: 360, maxWidth: '100%', alignSelf: 'center' }, authTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 32, color: C.primary, textAlign: 'center', marginTop: 25 }, authCopy: { fontFamily: 'Inter_400Regular', fontSize: 14, color: C.mutedForeground, textAlign: 'center', marginTop: 6, marginBottom: 25 }, input: { height: 52, width: '100%', backgroundColor: C.card, borderRadius: 15, borderWidth: 1, borderColor: C.border, paddingHorizontal: 16, fontFamily: 'Inter_400Regular', fontSize: 15, marginBottom: 12 }, passwordField: { position: 'relative', width: '100%' }, passwordInput: { paddingRight: 48 }, passwordToggle: { position: 'absolute', right: 8, top: 6, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }, error: { fontFamily: 'Inter_500Medium', fontSize: 12, color: C.destructive, marginBottom: 4 }, demoRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.border }, avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: C.peach, alignItems: 'center', justifyContent: 'center' }, avatarText: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 17, color: C.primary }, demoName: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary }, authFooter: { flexDirection: 'row', justifyContent: 'center', marginTop: 20 }, disclaimer: { fontFamily: 'Inter_400Regular', fontSize: 10, lineHeight: 15, textAlign: 'center', color: C.mutedForeground, marginTop: 20 }, row: { flexDirection: 'row', gap: 10, width: '100%', alignItems: 'stretch' }, rowField: { flex: 1, minWidth: 0 } });
+
+const gateStyles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: C.background },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingBottom: 8 },
+  brand: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 16, color: C.primary },
+  skip: { fontFamily: 'Inter_700Bold', fontSize: 13, color: C.primary },
+  viewport: { flex: 1, overflow: 'hidden' },
+  track: { flex: 1, flexDirection: 'row' },
+  slide: { flex: 1, justifyContent: 'center' },
+  copy: { width: '100%', maxWidth: 440, alignSelf: 'center', paddingHorizontal: 28, alignItems: 'center' },
+  artStage: { width: '100%', height: 280, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  artHalo: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: '#E7EEE5' },
+  art: { width: '100%', height: 260 },
+  kicker: { fontFamily: 'Inter_700Bold', fontSize: 11, letterSpacing: 1.6, color: C.blue, marginBottom: 10 },
+  title: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 32, lineHeight: 40, color: C.primary, textAlign: 'center' },
+  body: { fontFamily: 'Inter_400Regular', fontSize: 16, lineHeight: 24, color: C.mutedForeground, textAlign: 'center', marginTop: 12 },
+  footer: { paddingHorizontal: 28, paddingTop: 8, alignItems: 'center' },
+  dots: { flexDirection: 'row', gap: 8, marginBottom: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: C.border },
+  dotActive: { width: 22, backgroundColor: C.primary },
+  action: { width: '100%', maxWidth: 360 },
+  install: { width: 360, maxWidth: '100%', alignSelf: 'center', backgroundColor: C.card, borderRadius: 18, borderWidth: 1, borderColor: C.border, padding: 14, marginTop: 18 },
+  installHead: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  installEyebrow: { fontFamily: 'Inter_700Bold', fontSize: 10, letterSpacing: 1.4, color: C.blue, marginBottom: 4 },
+  installTitle: { fontFamily: 'LibreBaskerville_400Regular', fontSize: 18, lineHeight: 24, color: C.primary },
+  installToggle: { fontFamily: 'Inter_700Bold', fontSize: 12, color: C.primary, marginTop: 10 },
+  installStep: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
+  installNum: { width: 22, height: 22, borderRadius: 11, backgroundColor: C.secondary, alignItems: 'center', justifyContent: 'center' },
+  installNumText: { fontFamily: 'Inter_700Bold', fontSize: 11, color: C.primary },
+  installStepText: { flex: 1, fontFamily: 'Inter_400Regular', fontSize: 13, lineHeight: 19, color: C.foreground },
+});
